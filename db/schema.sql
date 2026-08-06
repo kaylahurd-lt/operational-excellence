@@ -35,12 +35,32 @@ CREATE TABLE IF NOT EXISTS persons (
   active INTEGER NOT NULL DEFAULT 1 -- boolean
 );
 
+-- Real accounts with real credentials (username + hashed password) and
+-- server-side sessions - not a persona switcher. `demo_users` is the
+-- original table name from the data model and stays that way to avoid a
+-- mechanical rename across the codebase, but there is nothing "demo" about
+-- how identity is resolved: api/domain/auth.ts + routes.ts's session cookie
+-- lookup are the only path in. Real SSO is still a declared, not-built, dev
+-- seam for the hardening team (manifest.yaml auth.needs_sso) - this is
+-- real login, not real SSO.
 CREATE TABLE IF NOT EXISTS demo_users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
+  username TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
   role TEXT NOT NULL, -- ADMIN | EA | MANAGER
   assigned_competition_group_ids TEXT, -- JSON number[]
   managed_person_ids TEXT -- JSON number[]
+);
+
+-- Server-side sessions backing the login cookie. Tokens are random, opaque,
+-- and never derivable from the user id (api/domain/auth.ts).
+CREATE TABLE IF NOT EXISTS sessions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  token TEXT NOT NULL UNIQUE,
+  user_id INTEGER NOT NULL REFERENCES demo_users(id),
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS award_years (

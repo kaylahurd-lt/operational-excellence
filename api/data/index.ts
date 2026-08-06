@@ -10,3 +10,4 @@ export * as awardYears from "./award-years.js";
 export * as awardRules from "./award-rules.js";
 export * as scoreInputs from "./score-inputs.js";
 export * as auditLogEntries from "./audit-log-entries.js";
+export * as sessions from "./sessions.js";

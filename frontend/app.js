@@ -1,19 +1,18 @@
 // Front-end shell — everything here calls through api.js (the seam). No
 // hardcoded data arrays (gate check 1). Vanilla JS/DOM, no build step, to
 // match the skill's static-frontend template philosophy.
-import { api, setCurrentDemoUserId } from "./api.js";
+import { api } from "./api.js";
 
-const LS_USER_KEY = "opex-demo-user-id";
 const LS_YEAR_KEY = "opex-year-id";
 const LS_GROUP_KEY = "opex-group-id";
 
 const state = {
+  currentUser: null, // the real logged-in account (api.me()), not a persona pick
   demoUsers: [],
   awardYears: [],
   departments: [],
   competitionGroups: [],
   awardRules: [],
-  currentUserId: null,
   currentYearId: null,
   currentView: "dashboard",
   currentGroupId: null,
@@ -27,7 +26,7 @@ function escapeHtml(value) {
 }
 
 function currentUser() {
-  return state.demoUsers.find((u) => u.id === state.currentUserId) ?? null;
+  return state.currentUser;
 }
 function currentYear() {
   return state.awardYears.find((y) => y.id === state.currentYearId) ?? null;
@@ -50,6 +49,17 @@ function showSaved(el) {
 // ---------------------------------------------------------------- bootstrap
 
 async function init() {
+  try {
+    state.currentUser = await api.me();
+  } catch {
+    renderLoginScreen();
+    return;
+  }
+  await loadAppData();
+  renderAll();
+}
+
+async function loadAppData() {
   const [demoUsers, awardYears, departments, competitionGroups, awardRules] = await Promise.all([
     api.list("demo-users"),
     api.list("award-years"),
@@ -63,18 +73,12 @@ async function init() {
   state.competitionGroups = competitionGroups;
   state.awardRules = awardRules;
 
-  const savedUserId = Number(localStorage.getItem(LS_USER_KEY));
-  state.currentUserId = demoUsers.find((u) => u.id === savedUserId)?.id ?? demoUsers[0]?.id ?? null;
-  setCurrentDemoUserId(state.currentUserId);
-
   const savedYearId = Number(localStorage.getItem(LS_YEAR_KEY));
   const latestYear = awardYears.slice().sort((a, b) => b.year - a.year)[0];
   state.currentYearId = awardYears.find((y) => y.id === savedYearId)?.id ?? latestYear?.id ?? null;
 
   const savedGroupId = Number(localStorage.getItem(LS_GROUP_KEY));
   state.currentGroupId = competitionGroups.find((g) => g.id === savedGroupId)?.id ?? competitionGroups[0]?.id ?? null;
-
-  renderAll();
 }
 
 function renderAll() {
@@ -83,20 +87,62 @@ function renderAll() {
   renderView();
 }
 
+// ------------------------------------------------------------------- login
+
+function renderLoginScreen(errorMessage) {
+  document.getElementById("app-header").innerHTML = "";
+  document.getElementById("app-nav").innerHTML = "";
+  const main = document.getElementById("app-main");
+  main.innerHTML = `
+    <div class="login-screen">
+      <form id="login-form" class="login-card">
+        <h1>Operational Excellence</h1>
+        <p class="login-subtitle">Sign in to view or score OpEx points.</p>
+        ${errorMessage ? `<div class="notice login-error">${escapeHtml(errorMessage)}</div>` : ""}
+        <label>Username
+          <input id="login-username" class="select-inline" style="width:100%" autocomplete="username" required />
+        </label>
+        <label>Password
+          <input id="login-password" type="password" class="select-inline" style="width:100%" autocomplete="current-password" required />
+        </label>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:8px">Log in</button>
+      </form>
+    </div>
+  `;
+  main.querySelector("#login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const username = main.querySelector("#login-username").value.trim();
+    const password = main.querySelector("#login-password").value;
+    try {
+      state.currentUser = await api.login(username, password);
+      await loadAppData();
+      renderAll();
+    } catch (err) {
+      renderLoginScreen(err.status === 401 ? "Incorrect username or password." : err.message);
+    }
+  });
+}
+
+async function handleLogout() {
+  await api.logout().catch(() => {});
+  state.currentUser = null;
+  renderLoginScreen();
+}
+
 // ------------------------------------------------------------------ header
 
 function renderHeader() {
   const header = document.getElementById("app-header");
   const year = currentYear();
+  const user = currentUser();
   header.innerHTML = `
     <h1>Operational Excellence</h1>
     <label>Year
       <select id="year-select" class="select-inline"></select>
     </label>
     ${year ? `<span class="status-badge status-${year.status}">${year.status.replace("_", " ")}</span>` : ""}
-    <label>Viewing as
-      <select id="user-select" class="select-inline"></select>
-    </label>
+    <span class="current-user">${escapeHtml(user.name)} <span class="current-user-role">${user.role}</span></span>
+    <button id="logout-btn" class="btn">Log out</button>
     <span id="saved-indicator" class="saved-indicator">Saved</span>
   `;
 
@@ -112,19 +158,7 @@ function renderHeader() {
     renderAll();
   });
 
-  const userSelect = header.querySelector("#user-select");
-  userSelect.innerHTML = state.demoUsers
-    .map((u) => `<option value="${u.id}" ${u.id === state.currentUserId ? "selected" : ""}>${escapeHtml(u.name)}</option>`)
-    .join("");
-  userSelect.addEventListener("change", (e) => {
-    state.currentUserId = Number(e.target.value);
-    setCurrentDemoUserId(state.currentUserId);
-    localStorage.setItem(LS_USER_KEY, String(state.currentUserId));
-    if (state.currentView === "rules" || state.currentView === "access" || state.currentView === "audit") {
-      state.currentView = "dashboard";
-    }
-    renderAll();
-  });
+  header.querySelector("#logout-btn").addEventListener("click", handleLogout);
 }
 
 // --------------------------------------------------------------------- nav
@@ -154,19 +188,29 @@ function renderNav() {
   });
 }
 
-function renderView() {
+async function renderView() {
   const main = document.getElementById("app-main");
   if (!currentUser()) {
-    main.innerHTML = `<div class="empty-state">No demo users configured. Run "npm run seed" first.</div>`;
+    renderLoginScreen();
     return;
   }
-  switch (state.currentView) {
-    case "dashboard": return renderDashboard(main);
-    case "grid": return renderScoringGrid(main);
-    case "rules": return renderAdminRules(main);
-    case "access": return renderAdminAccess(main);
-    case "audit": return renderAuditRollover(main);
-    default: main.innerHTML = "";
+  try {
+    switch (state.currentView) {
+      case "dashboard": return await renderDashboard(main);
+      case "grid": return await renderScoringGrid(main);
+      case "rules": return renderAdminRules(main);
+      case "access": return renderAdminAccess(main);
+      case "audit": return await renderAuditRollover(main);
+      default: main.innerHTML = "";
+    }
+  } catch (err) {
+    // The session cookie expired (7-day TTL) or was revoked elsewhere.
+    if (err.status === 401) {
+      state.currentUser = null;
+      renderLoginScreen("Your session expired - please log in again.");
+      return;
+    }
+    throw err;
   }
 }
 
@@ -470,11 +514,12 @@ function renderAdminAccess(main) {
   main.innerHTML = `
     <div class="panel">
       <table>
-        <thead><tr><th>Name</th><th>Role</th><th>Assigned groups</th><th>Managed people (ids)</th></tr></thead>
+        <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Assigned groups</th><th>Managed people (ids)</th></tr></thead>
         <tbody>
           ${state.demoUsers.map((u) => `
             <tr>
               <td>${escapeHtml(u.name)}</td>
+              <td>${escapeHtml(u.username)}</td>
               <td>${u.role}</td>
               <td>${u.assigned_competition_group_ids.map((id) => escapeHtml(groupById(id)?.name ?? id)).join(", ") || "—"}</td>
               <td>${u.managed_person_ids.join(", ") || "—"}</td>
@@ -482,7 +527,7 @@ function renderAdminAccess(main) {
           `).join("")}
         </tbody>
       </table>
-      <p style="font-size:12px;color:var(--muted)">Prototype-only access configuration, not production IAM.</p>
+      <p style="font-size:12px;color:var(--muted)">Real login accounts. Role/scope assignment is still manual here, not backed by a real IAM or HR system.</p>
     </div>
   `;
 }

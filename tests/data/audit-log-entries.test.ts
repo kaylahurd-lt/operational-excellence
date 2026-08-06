@@ -19,7 +19,14 @@ let ruleId: number;
 beforeEach(() => {
   const department = departments.create({ name: "D" });
   const group = competitionGroups.create({ name: "G" });
-  demoUserId = demoUsers.create({ name: "Admin", role: "ADMIN", assigned_competition_group_ids: [], managed_person_ids: [] }).id;
+  demoUserId = demoUsers.create({
+    name: "Admin",
+    username: "admin",
+    password_hash: "test-hash",
+    role: "ADMIN",
+    assigned_competition_group_ids: [],
+    managed_person_ids: [],
+  }).id;
   personAId = persons.create({
     name: "A",
     level: "ASSOCIATE",

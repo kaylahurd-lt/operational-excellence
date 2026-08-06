@@ -18,6 +18,7 @@ import * as demoUsers from "../api/data/demo-users.js";
 import * as awardYears from "../api/data/award-years.js";
 import * as awardRules from "../api/data/award-rules.js";
 import * as scoreInputs from "../api/data/score-inputs.js";
+import { hashPassword } from "../api/domain/auth.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dbPath = join(__dirname, "..", "data-store", "app.db");
@@ -393,26 +394,41 @@ scoreInputs.create({ year_id: year2026.id, person_id: peytonSalas.id, rule_id: l
 scoreInputs.create({ year_id: year2026.id, person_id: laneWhitfield.id, rule_id: momWinnerFromTeam.id, raw_value: 1 });
 scoreInputs.create({ year_id: year2026.id, person_id: laneWhitfield.id, rule_id: febEngagementScore.id, raw_value: 82 });
 
-// ---- demo personas (spec section 9.A) ----
-demoUsers.create({ name: "Admin User", role: "ADMIN", assigned_competition_group_ids: [], managed_person_ids: [] });
-demoUsers.create({
-  name: "EA - Accounting",
-  role: "EA",
-  assigned_competition_group_ids: [group.accounting.id],
-  managed_person_ids: [],
-});
-demoUsers.create({
-  name: "EA - Legal & Government",
-  role: "EA",
-  assigned_competition_group_ids: [group.legalGov.id],
-  managed_person_ids: [],
-});
-demoUsers.create({
-  name: "Manager - Accounting Team A",
-  role: "MANAGER",
-  assigned_competition_group_ids: [],
-  managed_person_ids: [jordanBlake.id, morganEllis.id, caseyNguyen.id],
-});
+// ---- accounts (spec section 9.A) ----
+// Real login (username + password + server-side session), not a demo
+// persona switcher - see api/domain/auth.ts. Every seeded account shares one
+// prototype-only password so this script can print it; a real onboarding
+// flow (dev-seam work) would let each person set their own.
+const SEED_PASSWORD = "OpEx-2026-Demo!";
+const seedPasswordHash = hashPassword(SEED_PASSWORD);
+
+const accounts = [
+  { name: "Admin User", username: "admin", role: "ADMIN" as const, assigned_competition_group_ids: [], managed_person_ids: [] },
+  {
+    name: "EA - Accounting",
+    username: "ea.accounting",
+    role: "EA" as const,
+    assigned_competition_group_ids: [group.accounting.id],
+    managed_person_ids: [],
+  },
+  {
+    name: "EA - Legal & Government",
+    username: "ea.legalgov",
+    role: "EA" as const,
+    assigned_competition_group_ids: [group.legalGov.id],
+    managed_person_ids: [],
+  },
+  {
+    name: "Manager - Accounting Team A",
+    username: "manager.accounting",
+    role: "MANAGER" as const,
+    assigned_competition_group_ids: [],
+    managed_person_ids: [jordanBlake.id, morganEllis.id, caseyNguyen.id],
+  },
+];
+for (const account of accounts) {
+  demoUsers.create({ ...account, password_hash: seedPasswordHash });
+}
 
 console.log("Seed complete:");
 console.log(`  departments: ${departments.list().length}`);
@@ -422,7 +438,7 @@ console.log(`  award rules: ${awardRules.list().length}`);
 console.log(`  score inputs: ${scoreInputs.listForYear(year2026.id).length}`);
 console.log(`  demo users: ${demoUsers.list().length}`);
 console.log(`  award year: ${year2026.year} (${year2026.status})`);
-console.log("\nDemo user ids for the frontend persona switcher:");
+console.log(`\nLogin at http://localhost:8080 with any of these (password: ${SEED_PASSWORD}):`);
 for (const user of demoUsers.list()) {
-  console.log(`  ${user.id}: ${user.name} (${user.role})`);
+  console.log(`  ${user.username} - ${user.name} (${user.role})`);
 }

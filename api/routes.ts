@@ -1,10 +1,11 @@
 // REST routes over the data-access seam (operational-excellence).
 // Routes import ONLY from ./data and ./domain — never from ./connection.
 //
-// Auth is a declared dev seam for this prototype (manifest.yaml auth.needs_sso:
-// true) — there is no real login. The frontend's persona switcher sends
-// `x-demo-user-id` on every request; requireUser() below resolves it against
-// demo_users and every route enforces access through api/domain/permissions.ts.
+// Real login (username + password + server-side session cookie), not real
+// SSO (manifest.yaml auth.needs_sso: true is still declared-not-built for
+// an actual SSO provider) and not a demo persona switcher. requireUser()
+// resolves the caller from the session cookie; every route enforces access
+// through api/domain/permissions.ts same as before.
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import * as departments from "./data/departments.js";
 import * as competitionGroups from "./data/competition-groups.js";
@@ -19,7 +20,10 @@ import { calculatePersonTotal } from "./domain/calculations.js";
 import { canViewPerson, canEditRuleInput, canManageYear, visiblePersons } from "./domain/permissions.js";
 import { recordScoreInputChange } from "./domain/audit.js";
 import { rolloverYear } from "./domain/rollover.js";
+import { hashPassword, verifyPassword, createSession, resolveSession, destroySession, toPublicUser } from "./domain/auth.js";
 import type { DemoUser } from "./data/demo-users.js";
+
+const SESSION_COOKIE = "session";
 
 const idParam = {
   type: "object",
@@ -28,10 +32,9 @@ const idParam = {
 } as const;
 
 function requireUser(req: FastifyRequest): DemoUser | null {
-  const header = req.headers["x-demo-user-id"];
-  const id = Number(Array.isArray(header) ? header[0] : header);
-  if (!id || Number.isNaN(id)) return null;
-  return demoUsers.get(id) ?? null;
+  const session = resolveSession(req.cookies?.[SESSION_COOKIE]);
+  if (!session) return null;
+  return demoUsers.get(session.userId) ?? null;
 }
 
 function rulesForPerson(person: persons.Person, allRules: awardRules.AwardRule[]): awardRules.AwardRule[] {
@@ -45,6 +48,51 @@ function rulesForPerson(person: persons.Person, allRules: awardRules.AwardRule[]
 }
 
 export async function registerRoutes(app: FastifyInstance) {
+  // ---- auth: real login, real server-side sessions ----
+  app.post(
+    "/auth/login",
+    {
+      schema: {
+        body: {
+          type: "object",
+          additionalProperties: false,
+          required: ["username", "password"],
+          properties: {
+            username: { type: "string", minLength: 1 },
+            password: { type: "string", minLength: 1 },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const { username, password } = req.body as { username: string; password: string };
+      const user = demoUsers.findByUsername(username);
+      if (!user || !verifyPassword(password, user.password_hash)) {
+        return reply.code(401).send({ error: "invalid username or password" });
+      }
+      const { token, expiresAt } = createSession(user.id);
+      reply.setCookie(SESSION_COOKIE, token, {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        expires: new Date(expiresAt),
+      });
+      return toPublicUser(user);
+    },
+  );
+
+  app.post("/auth/logout", async (req, reply) => {
+    destroySession(req.cookies?.[SESSION_COOKIE]);
+    reply.clearCookie(SESSION_COOKIE, { path: "/" });
+    return { ok: true };
+  });
+
+  app.get("/auth/me", async (req, reply) => {
+    const user = requireUser(req);
+    if (!user) return reply.code(401).send({ error: "not authenticated" });
+    return toPublicUser(user);
+  });
+
   // ---- departments (read-mostly reference data) ----
   app.get("/departments", async () => departments.list());
   app.get("/departments/:id", { schema: { params: idParam } }, async (req, reply) => {
@@ -83,13 +131,13 @@ export async function registerRoutes(app: FastifyInstance) {
   // ---- persons (visibility filtered by the calling demo user) ----
   app.get("/persons", async (req, reply) => {
     const user = requireUser(req);
-    if (!user) return reply.code(401).send({ error: "missing or unknown x-demo-user-id" });
+    if (!user) return reply.code(401).send({ error: "not authenticated" });
     return visiblePersons(user, persons.list());
   });
 
   app.get("/persons/:id", { schema: { params: idParam } }, async (req, reply) => {
     const user = requireUser(req);
-    if (!user) return reply.code(401).send({ error: "missing or unknown x-demo-user-id" });
+    if (!user) return reply.code(401).send({ error: "not authenticated" });
     const row = persons.get((req.params as { id: number }).id);
     if (!row) return reply.code(404).send({ error: "person not found" });
     if (!canViewPerson(user, row)) return reply.code(403).send({ error: "not authorized to view this person" });
@@ -117,7 +165,7 @@ export async function registerRoutes(app: FastifyInstance) {
     },
     async (req, reply) => {
       const user = requireUser(req);
-      if (!user) return reply.code(401).send({ error: "missing or unknown x-demo-user-id" });
+      if (!user) return reply.code(401).send({ error: "not authenticated" });
       const person = persons.get((req.params as { id: number }).id);
       if (!person) return reply.code(404).send({ error: "person not found" });
       if (!canViewPerson(user, person)) return reply.code(403).send({ error: "not authorized to view this person" });
@@ -192,7 +240,7 @@ export async function registerRoutes(app: FastifyInstance) {
     },
     async (req, reply) => {
       const user = requireUser(req);
-      if (!user) return reply.code(401).send({ error: "missing or unknown x-demo-user-id" });
+      if (!user) return reply.code(401).send({ error: "not authenticated" });
 
       const { personId, ruleId } = req.params as { personId: number; ruleId: number };
       const { yearId, quarter, rawValue } = req.body as {
@@ -244,14 +292,41 @@ export async function registerRoutes(app: FastifyInstance) {
   );
 
   // ---- demo users / access config (admin-facing, spec section 9.F) ----
-  app.get("/demo-users", async () => demoUsers.list());
+  // password_hash never leaves this process - every response here is run
+  // through toPublicUser().
+  app.get("/demo-users", async () => demoUsers.list().map(toPublicUser));
   app.get("/demo-users/:id", { schema: { params: idParam } }, async (req, reply) => {
     const row = demoUsers.get((req.params as { id: number }).id);
     if (!row) return reply.code(404).send({ error: "demo user not found" });
-    return row;
+    return toPublicUser(row);
   });
-  app.post("/demo-users", { schema: { body: demoUsers.createSchema } }, async (req) =>
-    demoUsers.create(req.body as Omit<DemoUser, "id">),
+  app.post(
+    "/demo-users",
+    {
+      schema: {
+        body: {
+          type: "object",
+          additionalProperties: false,
+          required: ["name", "username", "password", "role"],
+          properties: {
+            name: { type: "string", minLength: 1 },
+            username: { type: "string", minLength: 1 },
+            password: { type: "string", minLength: 8 },
+            role: { type: "string", enum: ["ADMIN", "EA", "MANAGER"] },
+            assigned_competition_group_ids: { type: "array", items: { type: "integer" } },
+            managed_person_ids: { type: "array", items: { type: "integer" } },
+          },
+        },
+      },
+    },
+    async (req) => {
+      const { password, ...rest } = req.body as { password: string } & Omit<
+        demoUsers.CreateDemoUserInput,
+        "password_hash"
+      >;
+      const created = demoUsers.create({ ...rest, password_hash: hashPassword(password) });
+      return toPublicUser(created);
+    },
   );
 
   // ---- award rules (admin-facing, spec section 9.E) ----

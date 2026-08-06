@@ -1,7 +1,7 @@
 // Spec section 9.C/11: EA sees only assigned groups, manager sees only their
 // people, admin sees everyone.
 import { describe, it, expect } from "vitest";
-import { freshDb } from "../helpers.js";
+import { freshDb, loginAs } from "../helpers.js";
 import { buildApp } from "../../api/server.js";
 
 freshDb();
@@ -36,7 +36,7 @@ async function seedTwoGroupsWithOnePersonEach(app: ReturnType<typeof buildApp>) 
 }
 
 describe("routes: GET /persons visibility", () => {
-  it("requires a known x-demo-user-id", async () => {
+  it("requires authentication", async () => {
     const app = buildApp();
     await app.ready();
     const res = await app.inject({ method: "GET", url: "/api/persons" });
@@ -48,17 +48,20 @@ describe("routes: GET /persons visibility", () => {
     const app = buildApp();
     await app.ready();
     const { groupA, personA } = await seedTwoGroupsWithOnePersonEach(app);
-    const ea = JSON.parse(
-      (
-        await app.inject({
-          method: "POST",
-          url: "/api/demo-users",
-          payload: { name: "EA - A", role: "EA", assigned_competition_group_ids: [groupA.id] },
-        })
-      ).body,
-    );
+    await app.inject({
+      method: "POST",
+      url: "/api/demo-users",
+      payload: {
+        name: "EA - A",
+        username: "ea.a",
+        password: "password123",
+        role: "EA",
+        assigned_competition_group_ids: [groupA.id],
+      },
+    });
+    const cookies = await loginAs(app, "ea.a", "password123");
 
-    const res = await app.inject({ method: "GET", url: "/api/persons", headers: { "x-demo-user-id": String(ea.id) } });
+    const res = await app.inject({ method: "GET", url: "/api/persons", cookies });
     const list = JSON.parse(res.body);
     expect(list).toHaveLength(1);
     expect(list[0].id).toBe(personA.id);
@@ -69,15 +72,14 @@ describe("routes: GET /persons visibility", () => {
     const app = buildApp();
     await app.ready();
     await seedTwoGroupsWithOnePersonEach(app);
-    const admin = JSON.parse(
-      (await app.inject({ method: "POST", url: "/api/demo-users", payload: { name: "Admin", role: "ADMIN" } })).body,
-    );
-
-    const res = await app.inject({
-      method: "GET",
-      url: "/api/persons",
-      headers: { "x-demo-user-id": String(admin.id) },
+    await app.inject({
+      method: "POST",
+      url: "/api/demo-users",
+      payload: { name: "Admin", username: "admin", password: "password123", role: "ADMIN" },
     });
+    const cookies = await loginAs(app, "admin", "password123");
+
+    const res = await app.inject({ method: "GET", url: "/api/persons", cookies });
     expect(JSON.parse(res.body)).toHaveLength(2);
     await app.close();
   });
@@ -86,21 +88,20 @@ describe("routes: GET /persons visibility", () => {
     const app = buildApp();
     await app.ready();
     const { groupA, personB } = await seedTwoGroupsWithOnePersonEach(app);
-    const ea = JSON.parse(
-      (
-        await app.inject({
-          method: "POST",
-          url: "/api/demo-users",
-          payload: { name: "EA - A", role: "EA", assigned_competition_group_ids: [groupA.id] },
-        })
-      ).body,
-    );
-
-    const res = await app.inject({
-      method: "GET",
-      url: `/api/persons/${personB.id}`,
-      headers: { "x-demo-user-id": String(ea.id) },
+    await app.inject({
+      method: "POST",
+      url: "/api/demo-users",
+      payload: {
+        name: "EA - A",
+        username: "ea.a",
+        password: "password123",
+        role: "EA",
+        assigned_competition_group_ids: [groupA.id],
+      },
     });
+    const cookies = await loginAs(app, "ea.a", "password123");
+
+    const res = await app.inject({ method: "GET", url: `/api/persons/${personB.id}`, cookies });
     expect(res.statusCode).toBe(403);
     await app.close();
   });

@@ -1,7 +1,7 @@
 // Spec section 11/15: EA can edit within scope while ACTIVE; manager can
 // never edit; AUDIT_LOCKED blocks EA/manager but allows admin corrections.
 import { describe, it, expect } from "vitest";
-import { freshDb } from "../helpers.js";
+import { freshDb, loginAs } from "../helpers.js";
 import { buildApp } from "../../api/server.js";
 
 freshDb();
@@ -38,20 +38,23 @@ describe("routes: PUT /persons/:personId/rules/:ruleId/score-input", () => {
     const app = buildApp();
     await app.ready();
     const { group, person, rule, year } = await seedPersonRuleYear(app);
-    const ea = JSON.parse(
-      (
-        await app.inject({
-          method: "POST",
-          url: "/api/demo-users",
-          payload: { name: "EA", role: "EA", assigned_competition_group_ids: [group.id] },
-        })
-      ).body,
-    );
+    await app.inject({
+      method: "POST",
+      url: "/api/demo-users",
+      payload: {
+        name: "EA",
+        username: "ea",
+        password: "password123",
+        role: "EA",
+        assigned_competition_group_ids: [group.id],
+      },
+    });
+    const cookies = await loginAs(app, "ea", "password123");
 
     const res = await app.inject({
       method: "PUT",
       url: `/api/persons/${person.id}/rules/${rule.id}/score-input`,
-      headers: { "x-demo-user-id": String(ea.id) },
+      cookies,
       payload: { yearId: year.id, rawValue: 1 },
     });
     expect(res.statusCode).toBe(200);
@@ -62,20 +65,23 @@ describe("routes: PUT /persons/:personId/rules/:ruleId/score-input", () => {
     const app = buildApp();
     await app.ready();
     const { person, rule, year } = await seedPersonRuleYear(app);
-    const manager = JSON.parse(
-      (
-        await app.inject({
-          method: "POST",
-          url: "/api/demo-users",
-          payload: { name: "Manager", role: "MANAGER", managed_person_ids: [person.id] },
-        })
-      ).body,
-    );
+    await app.inject({
+      method: "POST",
+      url: "/api/demo-users",
+      payload: {
+        name: "Manager",
+        username: "manager",
+        password: "password123",
+        role: "MANAGER",
+        managed_person_ids: [person.id],
+      },
+    });
+    const cookies = await loginAs(app, "manager", "password123");
 
     const res = await app.inject({
       method: "PUT",
       url: `/api/persons/${person.id}/rules/${rule.id}/score-input`,
-      headers: { "x-demo-user-id": String(manager.id) },
+      cookies,
       payload: { yearId: year.id, rawValue: 1 },
     });
     expect(res.statusCode).toBe(403);
@@ -86,23 +92,29 @@ describe("routes: PUT /persons/:personId/rules/:ruleId/score-input", () => {
     const app = buildApp();
     await app.ready();
     const { group, person, rule, year } = await seedPersonRuleYear(app);
-    const ea = JSON.parse(
-      (
-        await app.inject({
-          method: "POST",
-          url: "/api/demo-users",
-          payload: { name: "EA", role: "EA", assigned_competition_group_ids: [group.id] },
-        })
-      ).body,
-    );
-    const admin = JSON.parse(
-      (await app.inject({ method: "POST", url: "/api/demo-users", payload: { name: "Admin", role: "ADMIN" } })).body,
-    );
+    await app.inject({
+      method: "POST",
+      url: "/api/demo-users",
+      payload: {
+        name: "EA",
+        username: "ea",
+        password: "password123",
+        role: "EA",
+        assigned_competition_group_ids: [group.id],
+      },
+    });
+    await app.inject({
+      method: "POST",
+      url: "/api/demo-users",
+      payload: { name: "Admin", username: "admin", password: "password123", role: "ADMIN" },
+    });
+    const eaCookies = await loginAs(app, "ea", "password123");
+    const adminCookies = await loginAs(app, "admin", "password123");
 
     const lock = await app.inject({
       method: "POST",
       url: `/api/award-years/${year.id}/lock`,
-      headers: { "x-demo-user-id": String(admin.id) },
+      cookies: adminCookies,
     });
     expect(lock.statusCode).toBe(200);
     expect(JSON.parse(lock.body).status).toBe("AUDIT_LOCKED");
@@ -110,7 +122,7 @@ describe("routes: PUT /persons/:personId/rules/:ruleId/score-input", () => {
     const eaAttempt = await app.inject({
       method: "PUT",
       url: `/api/persons/${person.id}/rules/${rule.id}/score-input`,
-      headers: { "x-demo-user-id": String(ea.id) },
+      cookies: eaCookies,
       payload: { yearId: year.id, rawValue: 1 },
     });
     expect(eaAttempt.statusCode).toBe(403);
@@ -118,7 +130,7 @@ describe("routes: PUT /persons/:personId/rules/:ruleId/score-input", () => {
     const adminCorrection = await app.inject({
       method: "PUT",
       url: `/api/persons/${person.id}/rules/${rule.id}/score-input`,
-      headers: { "x-demo-user-id": String(admin.id) },
+      cookies: adminCookies,
       payload: { yearId: year.id, rawValue: 1 },
     });
     expect(adminCorrection.statusCode).toBe(200);

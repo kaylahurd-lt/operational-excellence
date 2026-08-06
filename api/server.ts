@@ -3,6 +3,7 @@
 // and exposes health endpoints for the k8s probes.
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
+import fastifyCookie from "@fastify/cookie";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { migrate } from "./connection.js";
@@ -18,6 +19,10 @@ export function buildApp() {
     logger: true,
     ajv: { customOptions: { removeAdditional: false } },
   });
+
+  // Backs the login session cookie (api/domain/auth.ts). httpOnly so the
+  // frontend never touches the token directly - the browser just sends it.
+  app.register(fastifyCookie);
 
   // Liveness/readiness for the k8s probes in infra/k8s/deployment.yaml
   app.get("/healthz", async () => ({ status: "ok" }));

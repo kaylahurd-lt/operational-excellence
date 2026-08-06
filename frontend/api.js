@@ -4,24 +4,19 @@
 // DEVIATION FROM THE SKILL TEMPLATE: the template's generic list/get/create/
 // update/remove cover flat CRUD, but this app has real business endpoints
 // (permission-checked score-input writes, computed person summaries,
-// provisional rankings, year lifecycle actions) that aren't flat CRUD. Those
-// are added as named helpers below, still funneled through the same
-// request() function, so this file remains the single seam boundary.
+// provisional rankings, year lifecycle actions, real login) that aren't flat
+// CRUD. Those are added as named helpers below, still funneled through the
+// same request() function, so this file remains the single seam boundary.
 const BASE = "/api";
-
-let currentDemoUserId = null;
-export function setCurrentDemoUserId(id) {
-  currentDemoUserId = id;
-}
 
 async function request(method, path, body) {
   const headers = {};
   if (body) headers["Content-Type"] = "application/json";
-  if (currentDemoUserId) headers["x-demo-user-id"] = String(currentDemoUserId);
 
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers,
+    credentials: "include", // send the httpOnly session cookie on every request
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
@@ -46,6 +41,12 @@ export const api = {
   create: (resource, data) => request("POST", `/${resource}`, data),
   update: (resource, id, data) => request("PUT", `/${resource}/${id}`, data),
   remove: (resource, id) => request("DELETE", `/${resource}/${id}`),
+
+  // Real login (username + password + server-side session cookie) - not SSO,
+  // not a demo persona switcher. See api/domain/auth.ts.
+  login: (username, password) => request("POST", "/auth/login", { username, password }),
+  logout: () => request("POST", "/auth/logout"),
+  me: () => request("GET", "/auth/me"),
 
   // Named helpers for this app's non-flat routes.
   getPersonSummary: (personId, yearId) => request("GET", `/persons/${personId}/summary?yearId=${yearId}`),

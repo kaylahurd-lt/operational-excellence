@@ -1,9 +1,10 @@
-// The confirmed happy path (spec sections 9.C/9.D/15): an EA enters a raw
-// score for an associate they're assigned to, and the person's calculated
-// Total reflects it immediately — without the EA ever touching a "Total"
-// field directly. Drives the built Fastify app in-process.
+// The confirmed happy path (spec sections 9.C/9.D/15, updated for real
+// login): an EA logs in, enters a raw score for an associate they're
+// assigned to, and the person's calculated Total reflects it immediately —
+// without the EA ever touching a "Total" field directly. Drives the built
+// Fastify app in-process.
 import { describe, it, expect } from "vitest";
-import { freshDb } from "../helpers.js";
+import { freshDb, loginAs } from "../helpers.js";
 import { buildApp } from "../../api/server.js";
 
 freshDb();
@@ -51,18 +52,26 @@ describe("happy path: EA enters a score, person Total updates", () => {
     const yearRes = await app.inject({ method: "POST", url: "/api/award-years", payload: { year: 2026 } });
     const year = JSON.parse(yearRes.body);
 
-    const eaRes = await app.inject({
+    await app.inject({
       method: "POST",
       url: "/api/demo-users",
-      payload: { name: "EA - Accounting", role: "EA", assigned_competition_group_ids: [competitionGroup.id] },
+      payload: {
+        name: "EA - Accounting",
+        username: "ea.accounting",
+        password: "correct-horse-battery-staple",
+        role: "EA",
+        assigned_competition_group_ids: [competitionGroup.id],
+      },
     });
-    const ea = JSON.parse(eaRes.body);
+
+    // The EA logs in for real - no persona switcher, no header shortcut.
+    const cookies = await loginAs(app, "ea.accounting", "correct-horse-battery-staple");
 
     // Before any input, the person's total is 0.
     const before = await app.inject({
       method: "GET",
       url: `/api/persons/${person.id}/summary?yearId=${year.id}`,
-      headers: { "x-demo-user-id": String(ea.id) },
+      cookies,
     });
     expect(before.statusCode).toBe(200);
     expect(JSON.parse(before.body).total).toBe(0);
@@ -71,7 +80,7 @@ describe("happy path: EA enters a score, person Total updates", () => {
     const write = await app.inject({
       method: "PUT",
       url: `/api/persons/${person.id}/rules/${rule.id}/score-input`,
-      headers: { "x-demo-user-id": String(ea.id) },
+      cookies,
       payload: { yearId: year.id, rawValue: 1 },
     });
     expect(write.statusCode).toBe(200);
@@ -80,7 +89,7 @@ describe("happy path: EA enters a score, person Total updates", () => {
     const after = await app.inject({
       method: "GET",
       url: `/api/persons/${person.id}/summary?yearId=${year.id}`,
-      headers: { "x-demo-user-id": String(ea.id) },
+      cookies,
     });
     expect(after.statusCode).toBe(200);
     const summary = JSON.parse(after.body);

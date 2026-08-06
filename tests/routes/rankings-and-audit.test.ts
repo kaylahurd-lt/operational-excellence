@@ -1,6 +1,6 @@
 // Spec section 9.G: provisional rankings, never a declared winner.
 import { describe, it, expect } from "vitest";
-import { freshDb } from "../helpers.js";
+import { freshDb, loginAs } from "../helpers.js";
 import { buildApp } from "../../api/server.js";
 
 freshDb();
@@ -24,9 +24,12 @@ describe("routes: competition-group rankings + audit log", () => {
       ).body,
     );
     const year = JSON.parse((await app.inject({ method: "POST", url: "/api/award-years", payload: { year: 2026 } })).body);
-    const admin = JSON.parse(
-      (await app.inject({ method: "POST", url: "/api/demo-users", payload: { name: "Admin", role: "ADMIN" } })).body,
-    );
+    await app.inject({
+      method: "POST",
+      url: "/api/demo-users",
+      payload: { name: "Admin", username: "admin", password: "password123", role: "ADMIN" },
+    });
+    const cookies = await loginAs(app, "admin", "password123");
 
     const low = JSON.parse(
       (
@@ -50,13 +53,13 @@ describe("routes: competition-group rankings + audit log", () => {
     await app.inject({
       method: "PUT",
       url: `/api/persons/${low.id}/rules/${rule.id}/score-input`,
-      headers: { "x-demo-user-id": String(admin.id) },
+      cookies,
       payload: { yearId: year.id, rawValue: 1 },
     });
     await app.inject({
       method: "PUT",
       url: `/api/persons/${high.id}/rules/${rule.id}/score-input`,
-      headers: { "x-demo-user-id": String(admin.id) },
+      cookies,
       payload: { yearId: year.id, rawValue: 5 },
     });
 

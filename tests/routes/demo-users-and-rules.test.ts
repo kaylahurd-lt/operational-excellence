@@ -12,10 +12,18 @@ describe("routes: demo-users and award-rules", () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/demo-users",
-      payload: { name: "Manager - Accounting Team A", role: "MANAGER", managed_person_ids: [1, 2, 3] },
+      payload: {
+        name: "Manager - Accounting Team A",
+        username: "manager.accounting",
+        password: "password123",
+        role: "MANAGER",
+        managed_person_ids: [1, 2, 3],
+      },
     });
     expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.body).managed_person_ids).toEqual([1, 2, 3]);
+    const created = JSON.parse(res.body);
+    expect(created.managed_person_ids).toEqual([1, 2, 3]);
+    expect(created.password_hash).toBeUndefined();
 
     const list = await app.inject({ method: "GET", url: "/api/demo-users" });
     expect(JSON.parse(list.body)).toHaveLength(1);

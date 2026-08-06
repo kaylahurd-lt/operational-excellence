@@ -48,6 +48,45 @@ button {
   color: var(--muted);
 }
 
+.current-user {
+  margin-left: auto;
+  font-size: 13px;
+  color: var(--text);
+}
+.current-user-role {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.login-screen {
+  min-height: calc(100vh - 60px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 32px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+}
+.login-card h1 { font-size: 20px; margin: 0; }
+.login-subtitle { font-size: 13px; color: var(--muted); margin: -8px 0 4px; }
+.login-card label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.login-error { margin: 0; }
+
 .status-badge {
   padding: 3px 10px;
   border-radius: 12px;

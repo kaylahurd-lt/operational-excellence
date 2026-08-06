@@ -15,6 +15,8 @@ function makeUser(overrides: Partial<DemoUser>): DemoUser {
   return {
     id: 1,
     name: "Test User",
+    username: "test.user",
+    password_hash: "unused-in-these-tests",
     role: "EA",
     assigned_competition_group_ids: [],
     managed_person_ids: [],

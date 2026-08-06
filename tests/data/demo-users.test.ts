@@ -8,6 +8,8 @@ describe("demo-users data access", () => {
   it("round-trips assigned/managed id arrays through JSON storage", () => {
     const created = demoUsers.create({
       name: "EA - Legal & Government",
+      username: "ea.legalgov",
+      password_hash: "test-hash",
       role: "EA",
       assigned_competition_group_ids: [1, 2],
       managed_person_ids: [],
@@ -25,11 +27,14 @@ describe("demo-users data access", () => {
     expect(demoUsers.get(created.id)).toBeUndefined();
   });
 
-  it("defaults to empty arrays when omitted", () => {
-    const created = demoUsers.create({ name: "Admin User", role: "ADMIN" } as unknown as Omit<
-      demoUsers.DemoUser,
-      "id"
-    >);
+  it("finds by username for login lookup", () => {
+    demoUsers.create({ name: "Admin User", username: "admin", password_hash: "test-hash", role: "ADMIN" });
+    expect(demoUsers.findByUsername("admin")?.name).toBe("Admin User");
+    expect(demoUsers.findByUsername("nobody")).toBeUndefined();
+  });
+
+  it("defaults assigned/managed arrays to empty when omitted", () => {
+    const created = demoUsers.create({ name: "Admin User", username: "admin2", password_hash: "test-hash", role: "ADMIN" });
     expect(created.assigned_competition_group_ids).toEqual([]);
     expect(created.managed_person_ids).toEqual([]);
   });
