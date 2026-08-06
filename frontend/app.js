@@ -192,12 +192,17 @@ async function renderDashboard(main) {
   const persons = await api.list("persons");
   const groups = groupsForVisiblePersons(persons);
 
-  let topRankingsHtml = "";
-  if (groups[0]) {
-    const rankings = await api.getGroupRankings(groups[0].id, state.currentYearId);
-    topRankingsHtml = `
+  // One panel per accessible group, not just the first - people only compete
+  // within their own group, so a single combined leaderboard would mix
+  // different rule sets together and mean nothing.
+  const rankingsByGroup = await Promise.all(
+    groups.map((g) => api.getGroupRankings(g.id, state.currentYearId).catch(() => null)),
+  );
+  const topRankingsHtml = rankingsByGroup
+    .filter(Boolean)
+    .map((rankings) => `
       <div class="panel">
-        <h3>Top provisional totals — ${escapeHtml(groups[0].name)}</h3>
+        <h3>Top provisional totals — ${escapeHtml(rankings.group.name)}</h3>
         <div class="notice">${escapeHtml(rankings.notice)}</div>
         <table>
           <thead><tr><th>Person</th><th>Total</th></tr></thead>
@@ -207,12 +212,12 @@ async function renderDashboard(main) {
                 <td>${escapeHtml(r.person.name)}${r.hasUnresolved ? '<span class="badge-tbd">TBD PENDING</span>' : ""}</td>
                 <td>${r.total}</td>
               </tr>
-            `).join("")}
+            `).join("") || `<tr><td colspan="2" class="empty-state">No people</td></tr>`}
           </tbody>
         </table>
       </div>
-    `;
-  }
+    `)
+    .join("");
 
   const totalEntries = await Promise.all(
     persons.slice(0, 50).map((p) => api.getPersonSummary(p.id, state.currentYearId).catch(() => null)),
