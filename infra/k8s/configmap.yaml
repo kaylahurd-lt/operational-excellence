@@ -1,0 +1,9 @@
+# STATIC TEMPLATE — copy verbatim, substitute operational-excellence/8080.
+# Non-secret config. Real values are set by the rail/hardening team.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: operational-excellence-config
+data:
+  PORT: "8080"
+  DATA_DIR: "/data"

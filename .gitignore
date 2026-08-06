@@ -1,0 +1,18 @@
+# STATIC TEMPLATE — copy verbatim into the package root.
+node_modules/
+dist/
+
+# Prototype SQLite store — never commit data (may contain PHI). (ADR 0003/0004)
+data-store/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Local env / secrets — real values are set by the hardening team, not committed.
+.env
+.env.*
+
+# OS / editor noise
+.DS_Store
+*.log

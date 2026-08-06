@@ -1,0 +1,31 @@
+# Manifest — the review board and rail read this on arrival. Fill EVERY field.
+# `phi` and `auth` are required gate items (GATE.md check 4).
+baseline_version: "1.0"
+
+app:
+  name: "operational-excellence"
+  title: "Operational Excellence"
+  owner: "Kayla Hurd <kayla.hurd@locumtenens.com>"
+  origin_surface: "claude-code"
+
+# Plain-language summary of what the app tracks (one line per entity).
+data_model:
+  - "Departments: name"
+  - "Competition Groups: name (departments merge into one group for OpEx competition)"
+  - "Persons: name, title, job level, department, competition group, manager"
+  - "Demo Users: name, role (Admin/EA/Manager), assigned competition groups, managed people"
+  - "Award Years: year number, status (Active/Audit Locked/Archived)"
+  - "Award Rules: name, applicable job levels, applicable groups, calculation type, rate, cap, formula-confirmed flag"
+  - "Score Inputs: the only editable raw data - one rule's raw value for one person in one year (optionally per quarter)"
+  - "Audit Log Entries: immutable record of every score-input change with before/after calculated points"
+
+# REQUIRED. Does any stored data describe patients, clinical details, or
+# compensation? The skill flags but never adjudicates (ADR 0004).
+phi: false # OpEx recognition/points data about employees - not patients, clinical details, or clinician compensation
+
+# REQUIRED. Does this app need SSO? Declared, not built — a dev seam.
+auth:
+  needs_sso: true # role-gated internal data (Admin/EA/Manager); prototype uses a demo persona switcher, not real auth
+
+# External services this app calls (declared, not wired).
+integrations: []

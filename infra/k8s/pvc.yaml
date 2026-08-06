@@ -1,0 +1,13 @@
+# STATIC TEMPLATE — copy verbatim, substitute operational-excellence.
+# The PVC backs the prototype SQLite file (ADR 0003). Removed when the
+# hardening team migrates to a managed Postgres.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: operational-excellence-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

@@ -1,0 +1,15 @@
+# STATIC TEMPLATE — copy verbatim, substitute operational-excellence/8080.
+apiVersion: v1
+kind: Service
+metadata:
+  name: operational-excellence
+  labels:
+    app: operational-excellence
+spec:
+  selector:
+    app: operational-excellence
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP
+# Ingress + SSO are a labeled dev seam — the hardening team adds them (ADR 0004 / DESIGN.md).

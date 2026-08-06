@@ -1,0 +1,47 @@
+# STATIC TEMPLATE — copy verbatim, substitute operational-excellence/8080.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: operational-excellence
+  labels:
+    app: operational-excellence
+    managed-by: micro-app-starter
+spec:
+  replicas: 1 # SQLite is single-writer (prototype-only); do not scale until Postgres (ADR 0003)
+  selector:
+    matchLabels:
+      app: operational-excellence
+  template:
+    metadata:
+      labels:
+        app: operational-excellence
+    spec:
+      containers:
+        - name: operational-excellence
+          image: REGISTRY/operational-excellence:latest # filled by the rail/hardening team
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: operational-excellence-config
+            - secretRef:
+                name: operational-excellence-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: operational-excellence-data
