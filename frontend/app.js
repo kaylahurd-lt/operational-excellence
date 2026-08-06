@@ -240,6 +240,21 @@ function rulesForLevelsAndGroup(levels, groupId) {
   });
 }
 
+// Short point-value annotation shown under each rule's header, mirroring how
+// the source Smartsheet embeds "(15pts)" etc. directly in the column header.
+function formatRuleMeta(rule) {
+  switch (rule.calculation_type) {
+    case "FIXED_PER_OCCURRENCE": return `${rule.rate} pts`;
+    case "CAPPED_PER_OCCURRENCE": return `${rule.rate} pts, max ${rule.max_points}`;
+    case "QUARTERLY_SUM_TIMES_RATE": return `${rule.rate} pts/badge`;
+    case "BADGES_PER_POINT": return `1 pt / ${rule.rate} badges`;
+    case "SCORE_INPUT": return "raw input";
+    case "MAPPED_SCORE_TBD":
+    case "UNKNOWN":
+    default: return "formula TBD";
+  }
+}
+
 async function renderScoringGrid(main) {
   main.innerHTML = `<div class="empty-state">Loading…</div>`;
   const allPersons = await api.list("persons");
@@ -258,21 +273,29 @@ async function renderScoringGrid(main) {
     groupPersons.map((p) => api.getPersonSummary(p.id, state.currentYearId)),
   );
 
+  const groupLabel = groups.find((g) => g.id === state.currentGroupId)?.name ?? "";
   main.innerHTML = `
-    <div class="panel">
+    <div class="panel grid-toolbar">
       <label>Competition group
         <select id="group-select" class="select-inline"></select>
       </label>
-      <input id="grid-search" class="search-input" placeholder="Search by name…" style="margin-left:16px" />
+      <input id="grid-search" class="search-input" placeholder="Search by name…" />
+      <span class="grid-toolbar-hint">${escapeHtml(groupLabel)} · ${groupPersons.length} people</span>
     </div>
     <div class="grid-wrap">
       <table>
         <thead>
           <tr>
-            <th class="sticky sticky-name">Name</th>
-            <th class="sticky sticky-total">Total</th>
-            <th>Manager</th>
-            ${rules.map((r) => `<th title="${escapeHtml(r.description ?? "")}">${escapeHtml(r.name)}${r.formula_confirmed ? "" : '<span class="badge-tbd">TBD</span>'}</th>`).join("")}
+            <th class="sticky sticky-name">Associate Name</th>
+            <th class="sticky sticky-title">Title</th>
+            <th class="sticky sticky-manager">Manager</th>
+            <th class="sticky sticky-total icon-lock">Total</th>
+            ${rules.map((r) => `
+              <th title="${escapeHtml(r.description ?? "")}">
+                <div class="rule-name">${escapeHtml(r.name)}${r.formula_confirmed ? "" : '<span class="badge-tbd">TBD</span>'}</div>
+                <div class="rule-meta">${escapeHtml(formatRuleMeta(r))}</div>
+              </th>
+            `).join("")}
           </tr>
         </thead>
         <tbody id="grid-body"></tbody>
@@ -314,12 +337,13 @@ async function renderScoringGrid(main) {
       return `
         <tr class="person-row" data-person-id="${person.id}">
           <td class="sticky sticky-name">${escapeHtml(person.name)}${summary.hasUnresolved ? '<span class="badge-tbd">TBD</span>' : ""}</td>
+          <td class="sticky sticky-title">${escapeHtml(person.title ?? "—")}</td>
+          <td class="sticky sticky-manager">${managerPerson ? escapeHtml(managerPerson.name) : "—"}</td>
           <td class="sticky sticky-total icon-lock">${summary.total}</td>
-          <td>${managerPerson ? escapeHtml(managerPerson.name) : "—"}</td>
           ${cells}
         </tr>
       `;
-    }).join("") || `<tr><td colspan="${rules.length + 3}" class="empty-state">No people match.</td></tr>`;
+    }).join("") || `<tr><td colspan="${rules.length + 4}" class="empty-state">No people match.</td></tr>`;
 
     tbody.querySelectorAll(".cell-input").forEach((input) => {
       input.addEventListener("click", (e) => e.stopPropagation());

@@ -222,18 +222,33 @@ awardRules.create({
   description:
     "Scoped to Accounting only. It also appears on Sales Ops source pages as a possible copy artifact (spec section 8.2) - not scored there without confirmation.",
 });
+// Contest Winner / External Shoutout-Pardot report / Files appear on the
+// Customer Care Coordinators & Licensing sheets and the "with extra
+// categories" associate template in the source PDF, but NOT on Accounting,
+// Legal & Government, or Technology - scoped to Customer Care accordingly,
+// not to every associate.
 const contestWinner = awardRules.create({
   name: "Contest Winner",
   applies_to_levels: ["ASSOCIATE"],
+  competition_group_ids: [group.customerCare.id],
   calculation_type: "FIXED_PER_OCCURRENCE",
   rate: 2,
 });
 awardRules.create({
-  name: "External Shoutout",
+  name: "External Shoutout-Pardot report",
   applies_to_levels: ["ASSOCIATE"],
+  competition_group_ids: [group.customerCare.id],
   calculation_type: "CAPPED_PER_OCCURRENCE",
   rate: 2,
   max_points: 20,
+});
+awardRules.create({
+  name: "Files",
+  applies_to_levels: ["ASSOCIATE"],
+  competition_group_ids: [group.customerCare.id],
+  calculation_type: "UNKNOWN",
+  formula_confirmed: 0,
+  description: "Purpose/points unknown (spec section 8.4) - not scored until clarified.",
 });
 
 // ---- manager/director rules ----
@@ -344,8 +359,8 @@ awardRules.create({
 // Confirmed example: spot bonus count 7 => capped at 25 points.
 scoreInputs.create({ year_id: year2026.id, person_id: morganEllis.id, rule_id: spotBonus.id, raw_value: 7 });
 
-// Extra category.
-scoreInputs.create({ year_id: year2026.id, person_id: caseyNguyen.id, rule_id: contestWinner.id, raw_value: 1 });
+// Extra category (Customer Care-only rule - see contestWinner scoping above).
+scoreInputs.create({ year_id: year2026.id, person_id: skylerDiaz.id, rule_id: contestWinner.id, raw_value: 1 });
 
 // Service Excellence Winner for the Legal & Government group, for ranking demo.
 scoreInputs.create({ year_id: year2026.id, person_id: devonMarsh.id, rule_id: serviceExcellenceWinner.id, raw_value: 1 });

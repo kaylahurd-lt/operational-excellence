@@ -132,8 +132,24 @@ th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: upp
   background: var(--panel);
   z-index: 1;
 }
+/* Order matches the source Smartsheet layout: Name, Title, Manager, Total. */
 .grid-wrap th.sticky-name, .grid-wrap td.sticky-name { left: 0; min-width: 160px; }
-.grid-wrap th.sticky-total, .grid-wrap td.sticky-total { left: 160px; min-width: 90px; border-right: 1px solid var(--border); }
+.grid-wrap th.sticky-title, .grid-wrap td.sticky-title { left: 160px; min-width: 130px; }
+.grid-wrap th.sticky-manager, .grid-wrap td.sticky-manager { left: 290px; min-width: 130px; }
+.grid-wrap th.sticky-total, .grid-wrap td.sticky-total {
+  left: 420px;
+  min-width: 90px;
+  border-right: 1px solid var(--border);
+  font-weight: 700;
+}
+
+.grid-wrap thead th { text-transform: none; vertical-align: bottom; background: #fafbfc; padding: 8px 10px 10px; }
+.grid-wrap thead th.sticky { background: var(--panel); }
+.rule-name { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: normal; max-width: 140px; }
+.rule-meta { font-size: 10.5px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.02em; margin-top: 3px; }
+
+.grid-toolbar { display: flex; align-items: center; gap: 16px; }
+.grid-toolbar-hint { font-size: 12px; color: var(--muted); margin-left: auto; }
 
 td.cell-editable { background: var(--editable-bg); }
 td.cell-readonly { background: var(--readonly-bg); }
