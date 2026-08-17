@@ -13,7 +13,7 @@ describe("routes: award-year lifecycle + rollover", () => {
     await app.inject({
       method: "POST",
       url: "/api/demo-users",
-      payload: { name: "EA", username: "ea", password: "password123", role: "EA" },
+      payload: { name: "EA", email: "ea", password: "password123", role: "EA" },
     });
     const cookies = await loginAs(app, "ea", "password123");
 
@@ -31,7 +31,7 @@ describe("routes: award-year lifecycle + rollover", () => {
     await app.inject({
       method: "POST",
       url: "/api/demo-users",
-      payload: { name: "Admin", username: "admin", password: "password123", role: "ADMIN" },
+      payload: { name: "Admin", email: "admin", password: "password123", role: "ADMIN" },
     });
     const cookies = await loginAs(app, "admin", "password123");
 

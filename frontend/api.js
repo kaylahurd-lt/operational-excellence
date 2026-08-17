@@ -42,9 +42,9 @@ export const api = {
   update: (resource, id, data) => request("PUT", `/${resource}/${id}`, data),
   remove: (resource, id) => request("DELETE", `/${resource}/${id}`),
 
-  // Real login (username + password + server-side session cookie) - not SSO,
+  // Real login (email + password + server-side session cookie) - not SSO,
   // not a demo persona switcher. See api/domain/auth.ts.
-  login: (username, password) => request("POST", "/auth/login", { username, password }),
+  login: (email, password) => request("POST", "/auth/login", { email, password }),
   logout: () => request("POST", "/auth/logout"),
   me: () => request("GET", "/auth/me"),
 

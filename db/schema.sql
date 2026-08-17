@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS persons (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
   title TEXT,
+  division TEXT, -- some legacy sheets (Directors, People Ops Managers, Clinical
+                 -- Operations, Schedulers, VP/AVP) show Division instead of/
+                 -- alongside Title; source is inconsistent about where
   level TEXT NOT NULL, -- ASSOCIATE | MANAGER | DIRECTOR | VP_AVP
   department_id INTEGER NOT NULL REFERENCES departments(id),
   competition_group_id INTEGER NOT NULL REFERENCES competition_groups(id),
@@ -35,7 +38,7 @@ CREATE TABLE IF NOT EXISTS persons (
   active INTEGER NOT NULL DEFAULT 1 -- boolean
 );
 
--- Real accounts with real credentials (username + hashed password) and
+-- Real accounts with real credentials (email + hashed password) and
 -- server-side sessions - not a persona switcher. `demo_users` is the
 -- original table name from the data model and stays that way to avoid a
 -- mechanical rename across the codebase, but there is nothing "demo" about
@@ -46,7 +49,7 @@ CREATE TABLE IF NOT EXISTS persons (
 CREATE TABLE IF NOT EXISTS demo_users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
-  username TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL, -- ADMIN | EA | MANAGER
   assigned_competition_group_ids TEXT, -- JSON number[]

@@ -24,14 +24,14 @@ export function freshDb() {
 // expects for every subsequent authenticated request.
 export async function loginAs(
   app: FastifyInstance,
-  username: string,
+  email: string,
   password: string,
 ): Promise<{ session: string }> {
-  const res = await app.inject({ method: "POST", url: "/api/auth/login", payload: { username, password } });
+  const res = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email, password } });
   if (res.statusCode !== 200) {
-    throw new Error(`login as ${username} failed: ${res.statusCode} ${res.body}`);
+    throw new Error(`login as ${email} failed: ${res.statusCode} ${res.body}`);
   }
   const sessionCookie = res.cookies.find((c) => c.name === "session");
-  if (!sessionCookie) throw new Error(`login as ${username} did not set a session cookie`);
+  if (!sessionCookie) throw new Error(`login as ${email} did not set a session cookie`);
   return { session: sessionCookie.value };
 }

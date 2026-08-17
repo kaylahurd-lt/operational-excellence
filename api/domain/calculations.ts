@@ -46,6 +46,11 @@ export interface RuleCalculationResult {
   ruleId: number;
   ruleName: string;
   rawValue: number;
+  // Q1-Q4 raw values, present only for rule.quarters rules - the UI renders
+  // 4 separate input cells for these instead of 1 (spec: the source sheet
+  // has 4 raw columns feeding one points column, e.g. "Q1 Recognize Badges"
+  // .. "Q4 Recognize Badges" -> "Recognize Badge Points").
+  quarterlyRaw?: [number, number, number, number];
   points: number;
   unresolved: boolean;
   roundingAssumption: boolean;
@@ -59,10 +64,16 @@ export function calculateRulePoints(
   inputsForRule: ScoreInput[],
 ): RuleCalculationResult {
   const rawTotal = inputsForRule.reduce((sum, i) => sum + i.raw_value, 0);
+  const quarterlyRaw: [number, number, number, number] | undefined = rule.quarters
+    ? [1, 2, 3, 4].map(
+        (q) => inputsForRule.find((i) => i.quarter === q)?.raw_value ?? 0,
+      ) as [number, number, number, number]
+    : undefined;
   const base: Omit<RuleCalculationResult, "points" | "unresolved" | "roundingAssumption"> = {
     ruleId: rule.id,
     ruleName: rule.name,
     rawValue: rawTotal,
+    ...(quarterlyRaw ? { quarterlyRaw } : {}),
   };
 
   switch (rule.calculation_type) {

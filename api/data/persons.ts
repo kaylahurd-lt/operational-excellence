@@ -7,6 +7,7 @@ export interface Person {
   id: number;
   name: string;
   title: string | null;
+  division: string | null;
   level: EmployeeLevel;
   department_id: number;
   competition_group_id: number;
@@ -21,6 +22,7 @@ export const createSchema = {
   properties: {
     name: { type: "string", minLength: 1 },
     title: { type: ["string", "null"] },
+    division: { type: ["string", "null"] },
     level: { type: "string", enum: ["ASSOCIATE", "MANAGER", "DIRECTOR", "VP_AVP"] },
     department_id: { type: "integer", minimum: 1 },
     competition_group_id: { type: "integer", minimum: 1 },
@@ -36,6 +38,7 @@ export const updateSchema = {
   properties: {
     name: { type: "string", minLength: 1 },
     title: { type: ["string", "null"] },
+    division: { type: ["string", "null"] },
     level: { type: "string", enum: ["ASSOCIATE", "MANAGER", "DIRECTOR", "VP_AVP"] },
     department_id: { type: "integer", minimum: 1 },
     competition_group_id: { type: "integer", minimum: 1 },
@@ -44,8 +47,8 @@ export const updateSchema = {
   },
 } as const;
 
-export type CreatePersonInput = Omit<Person, "id" | "title" | "manager_id" | "active"> &
-  Partial<Pick<Person, "title" | "manager_id" | "active">>;
+export type CreatePersonInput = Omit<Person, "id" | "title" | "division" | "manager_id" | "active"> &
+  Partial<Pick<Person, "title" | "division" | "manager_id" | "active">>;
 
 export function list(): Person[] {
   return getDb().prepare("SELECT * FROM persons").all() as unknown as Person[];
@@ -58,10 +61,10 @@ export function get(id: number): Person | undefined {
 }
 
 export function create(input: CreatePersonInput): Person {
-  const withDefaults = { active: 1, title: null, manager_id: null, ...input };
+  const withDefaults = { active: 1, title: null, division: null, manager_id: null, ...input };
   const stmt = getDb().prepare(
-    "INSERT INTO persons (name, title, level, department_id, competition_group_id, manager_id, active) " +
-      "VALUES (@name, @title, @level, @department_id, @competition_group_id, @manager_id, @active)",
+    "INSERT INTO persons (name, title, division, level, department_id, competition_group_id, manager_id, active) " +
+      "VALUES (@name, @title, @division, @level, @department_id, @competition_group_id, @manager_id, @active)",
   );
   const info = stmt.run(withDefaults as unknown as Bindable);
   return get(Number(info.lastInsertRowid))!;

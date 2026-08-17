@@ -7,6 +7,13 @@ import { buildApp } from "../../api/server.js";
 freshDb();
 
 async function seedPersonRuleYear(app: ReturnType<typeof buildApp>) {
+  await app.inject({
+    method: "POST",
+    url: "/api/demo-users",
+    payload: { name: "Seed Admin", email: "seed.admin", password: "password123", role: "ADMIN" },
+  });
+  const adminCookies = await loginAs(app, "seed.admin", "password123");
+
   const dept = JSON.parse((await app.inject({ method: "POST", url: "/api/departments", payload: { name: "D" } })).body);
   const group = JSON.parse(
     (await app.inject({ method: "POST", url: "/api/competition-groups", payload: { name: "G" } })).body,
@@ -16,6 +23,7 @@ async function seedPersonRuleYear(app: ReturnType<typeof buildApp>) {
       await app.inject({
         method: "POST",
         url: "/api/persons",
+        cookies: adminCookies,
         payload: { name: "P", level: "ASSOCIATE", department_id: dept.id, competition_group_id: group.id },
       })
     ).body,
@@ -30,20 +38,21 @@ async function seedPersonRuleYear(app: ReturnType<typeof buildApp>) {
     ).body,
   );
   const year = JSON.parse((await app.inject({ method: "POST", url: "/api/award-years", payload: { year: 2026 } })).body);
-  return { group, person, rule, year };
+  return { group, person, rule, year, adminCookies };
 }
 
 describe("routes: PUT /persons/:personId/rules/:ruleId/score-input", () => {
   it("lets an EA within scope write while ACTIVE", async () => {
     const app = buildApp();
     await app.ready();
-    const { group, person, rule, year } = await seedPersonRuleYear(app);
+    const { group, person, rule, year, adminCookies } = await seedPersonRuleYear(app);
     await app.inject({
       method: "POST",
       url: "/api/demo-users",
+      cookies: adminCookies,
       payload: {
         name: "EA",
-        username: "ea",
+        email: "ea",
         password: "password123",
         role: "EA",
         assigned_competition_group_ids: [group.id],
@@ -64,13 +73,14 @@ describe("routes: PUT /persons/:personId/rules/:ruleId/score-input", () => {
   it("403s a manager attempting to write", async () => {
     const app = buildApp();
     await app.ready();
-    const { person, rule, year } = await seedPersonRuleYear(app);
+    const { person, rule, year, adminCookies } = await seedPersonRuleYear(app);
     await app.inject({
       method: "POST",
       url: "/api/demo-users",
+      cookies: adminCookies,
       payload: {
         name: "Manager",
-        username: "manager",
+        email: "manager",
         password: "password123",
         role: "MANAGER",
         managed_person_ids: [person.id],
@@ -91,13 +101,14 @@ describe("routes: PUT /persons/:personId/rules/:ruleId/score-input", () => {
   it("403s an EA once the year is AUDIT_LOCKED, but allows an admin correction", async () => {
     const app = buildApp();
     await app.ready();
-    const { group, person, rule, year } = await seedPersonRuleYear(app);
+    const { group, person, rule, year, adminCookies: seedAdminCookies } = await seedPersonRuleYear(app);
     await app.inject({
       method: "POST",
       url: "/api/demo-users",
+      cookies: seedAdminCookies,
       payload: {
         name: "EA",
-        username: "ea",
+        email: "ea",
         password: "password123",
         role: "EA",
         assigned_competition_group_ids: [group.id],
@@ -106,7 +117,8 @@ describe("routes: PUT /persons/:personId/rules/:ruleId/score-input", () => {
     await app.inject({
       method: "POST",
       url: "/api/demo-users",
-      payload: { name: "Admin", username: "admin", password: "password123", role: "ADMIN" },
+      cookies: seedAdminCookies,
+      payload: { name: "Admin", email: "admin", password: "password123", role: "ADMIN" },
     });
     const eaCookies = await loginAs(app, "ea", "password123");
     const adminCookies = await loginAs(app, "admin", "password123");

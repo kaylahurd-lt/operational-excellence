@@ -24,9 +24,17 @@ describe("happy path: EA enters a score, person Total updates", () => {
     });
     const competitionGroup = JSON.parse(group.body);
 
+    await app.inject({
+      method: "POST",
+      url: "/api/demo-users",
+      payload: { name: "Seed Admin", email: "seed.admin", password: "password123", role: "ADMIN" },
+    });
+    const adminCookies = await loginAs(app, "seed.admin", "password123");
+
     const personRes = await app.inject({
       method: "POST",
       url: "/api/persons",
+      cookies: adminCookies,
       payload: {
         name: "Jordan Rivera",
         level: "ASSOCIATE",
@@ -55,9 +63,10 @@ describe("happy path: EA enters a score, person Total updates", () => {
     await app.inject({
       method: "POST",
       url: "/api/demo-users",
+      cookies: adminCookies,
       payload: {
         name: "EA - Accounting",
-        username: "ea.accounting",
+        email: "ea.accounting",
         password: "correct-horse-battery-staple",
         role: "EA",
         assigned_competition_group_ids: [competitionGroup.id],

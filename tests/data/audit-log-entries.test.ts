@@ -21,7 +21,7 @@ beforeEach(() => {
   const group = competitionGroups.create({ name: "G" });
   demoUserId = demoUsers.create({
     name: "Admin",
-    username: "admin",
+    email: "admin",
     password_hash: "test-hash",
     role: "ADMIN",
     assigned_competition_group_ids: [],

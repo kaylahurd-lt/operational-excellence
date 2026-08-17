@@ -15,7 +15,7 @@ function makeUser(overrides: Partial<DemoUser>): DemoUser {
   return {
     id: 1,
     name: "Test User",
-    username: "test.user",
+    email: "test.user",
     password_hash: "unused-in-these-tests",
     role: "EA",
     assigned_competition_group_ids: [],
@@ -29,6 +29,7 @@ function makePerson(overrides: Partial<Person>): Person {
     id: 1,
     name: "Test Person",
     title: null,
+    division: null,
     level: "ASSOCIATE",
     department_id: 1,
     competition_group_id: 1,

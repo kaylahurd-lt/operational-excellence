@@ -27,7 +27,7 @@ describe("routes: competition-group rankings + audit log", () => {
     await app.inject({
       method: "POST",
       url: "/api/demo-users",
-      payload: { name: "Admin", username: "admin", password: "password123", role: "ADMIN" },
+      payload: { name: "Admin", email: "admin", password: "password123", role: "ADMIN" },
     });
     const cookies = await loginAs(app, "admin", "password123");
 
@@ -36,6 +36,7 @@ describe("routes: competition-group rankings + audit log", () => {
         await app.inject({
           method: "POST",
           url: "/api/persons",
+          cookies,
           payload: { name: "Low Scorer", level: "ASSOCIATE", department_id: dept.id, competition_group_id: group.id },
         })
       ).body,
@@ -45,6 +46,7 @@ describe("routes: competition-group rankings + audit log", () => {
         await app.inject({
           method: "POST",
           url: "/api/persons",
+          cookies,
           payload: { name: "High Scorer", level: "ASSOCIATE", department_id: dept.id, competition_group_id: group.id },
         })
       ).body,

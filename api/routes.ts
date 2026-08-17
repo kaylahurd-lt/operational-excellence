@@ -1,7 +1,7 @@
 // REST routes over the data-access seam (operational-excellence).
 // Routes import ONLY from ./data and ./domain — never from ./connection.
 //
-// Real login (username + password + server-side session cookie), not real
+// Real login (email + password + server-side session cookie), not real
 // SSO (manifest.yaml auth.needs_sso: true is still declared-not-built for
 // an actual SSO provider) and not a demo persona switcher. requireUser()
 // resolves the caller from the session cookie; every route enforces access
@@ -16,8 +16,9 @@ import * as awardYears from "./data/award-years.js";
 import * as awardRules from "./data/award-rules.js";
 import * as scoreInputs from "./data/score-inputs.js";
 import * as auditLogEntries from "./data/audit-log-entries.js";
+import * as sessions from "./data/sessions.js";
 import { calculatePersonTotal } from "./domain/calculations.js";
-import { canViewPerson, canEditRuleInput, canManageYear, visiblePersons } from "./domain/permissions.js";
+import { canViewPerson, canEditRuleInput, canManageYear, canManagePersons, canManageUsers, visiblePersons } from "./domain/permissions.js";
 import { recordScoreInputChange } from "./domain/audit.js";
 import { rolloverYear } from "./domain/rollover.js";
 import { hashPassword, verifyPassword, createSession, resolveSession, destroySession, toPublicUser } from "./domain/auth.js";
@@ -56,19 +57,19 @@ export async function registerRoutes(app: FastifyInstance) {
         body: {
           type: "object",
           additionalProperties: false,
-          required: ["username", "password"],
+          required: ["email", "password"],
           properties: {
-            username: { type: "string", minLength: 1 },
+            email: { type: "string", minLength: 1 },
             password: { type: "string", minLength: 1 },
           },
         },
       },
     },
     async (req, reply) => {
-      const { username, password } = req.body as { username: string; password: string };
-      const user = demoUsers.findByUsername(username);
+      const { email, password } = req.body as { email: string; password: string };
+      const user = demoUsers.findByEmail(email);
       if (!user || !verifyPassword(password, user.password_hash)) {
-        return reply.code(401).send({ error: "invalid username or password" });
+        return reply.code(401).send({ error: "invalid email or password" });
       }
       const { token, expiresAt } = createSession(user.id);
       reply.setCookie(SESSION_COOKIE, token, {
@@ -144,9 +145,13 @@ export async function registerRoutes(app: FastifyInstance) {
     return row;
   });
 
-  app.post("/persons", { schema: { body: persons.createSchema } }, async (req) =>
-    persons.create(req.body as persons.CreatePersonInput),
-  );
+  app.post("/persons", { schema: { body: persons.createSchema } }, async (req, reply) => {
+    const user = requireUser(req);
+    if (!user || !canManagePersons(user)) {
+      return reply.code(403).send({ error: "only an admin can add people" });
+    }
+    return persons.create(req.body as persons.CreatePersonInput);
+  });
 
   // Assembled read model: rules applicable to this person + their score_inputs
   // for the given year, run through the calculation engine. Total is never
@@ -307,10 +312,10 @@ export async function registerRoutes(app: FastifyInstance) {
         body: {
           type: "object",
           additionalProperties: false,
-          required: ["name", "username", "password", "role"],
+          required: ["name", "email", "password", "role"],
           properties: {
             name: { type: "string", minLength: 1 },
-            username: { type: "string", minLength: 1 },
+            email: { type: "string", minLength: 1 },
             password: { type: "string", minLength: 8 },
             role: { type: "string", enum: ["ADMIN", "EA", "MANAGER"] },
             assigned_competition_group_ids: { type: "array", items: { type: "integer" } },
@@ -319,7 +324,16 @@ export async function registerRoutes(app: FastifyInstance) {
         },
       },
     },
-    async (req) => {
+    async (req, reply) => {
+      // Bootstrap exception: the very first account in a fresh install has
+      // nobody to authenticate as yet. Every account after that must be
+      // created by an admin - this is a management surface, not self-signup.
+      if (demoUsers.list().length > 0) {
+        const user = requireUser(req);
+        if (!user || !canManageUsers(user)) {
+          return reply.code(403).send({ error: "only an admin can add accounts" });
+        }
+      }
       const { password, ...rest } = req.body as { password: string } & Omit<
         demoUsers.CreateDemoUserInput,
         "password_hash"
@@ -328,6 +342,54 @@ export async function registerRoutes(app: FastifyInstance) {
       return toPublicUser(created);
     },
   );
+  app.put(
+    "/demo-users/:id",
+    {
+      schema: {
+        params: idParam,
+        body: {
+          type: "object",
+          additionalProperties: false,
+          minProperties: 1,
+          properties: {
+            name: { type: "string", minLength: 1 },
+            email: { type: "string", minLength: 1 },
+            role: { type: "string", enum: ["ADMIN", "EA", "MANAGER"] },
+            assigned_competition_group_ids: { type: "array", items: { type: "integer" } },
+            managed_person_ids: { type: "array", items: { type: "integer" } },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const user = requireUser(req);
+      if (!user || !canManageUsers(user)) {
+        return reply.code(403).send({ error: "only an admin can edit accounts" });
+      }
+      const id = (req.params as { id: number }).id;
+      const updated = demoUsers.update(id, req.body as Partial<demoUsers.CreateDemoUserInput>);
+      if (!updated) return reply.code(404).send({ error: "demo user not found" });
+      return toPublicUser(updated);
+    },
+  );
+  app.delete("/demo-users/:id", { schema: { params: idParam } }, async (req, reply) => {
+    const user = requireUser(req);
+    if (!user || !canManageUsers(user)) {
+      return reply.code(403).send({ error: "only an admin can remove accounts" });
+    }
+    const id = (req.params as { id: number }).id;
+    if (id === user.id) return reply.code(400).send({ error: "cannot remove your own account" });
+    if (!demoUsers.get(id)) return reply.code(404).send({ error: "demo user not found" });
+    // Audit entries record who made a change and must stay immutable - an
+    // account with edit history can't be hard-deleted; revoke access via
+    // role/scope instead (or wire up a soft "deactivate" later).
+    if (auditLogEntries.list().some((e) => e.demo_user_id === id)) {
+      return reply.code(400).send({ error: "this account has audit history and can't be removed - change its role/scope to revoke access instead" });
+    }
+    sessions.removeAllForUser(id);
+    demoUsers.remove(id);
+    return reply.code(204).send();
+  });
 
   // ---- award rules (admin-facing, spec section 9.E) ----
   app.get("/award-rules", async () => awardRules.list());

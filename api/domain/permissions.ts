@@ -45,6 +45,14 @@ export function canManageYear(user: DemoUser): boolean {
   return user.role === "ADMIN";
 }
 
+export function canManagePersons(user: DemoUser): boolean {
+  return user.role === "ADMIN";
+}
+
+export function canManageUsers(user: DemoUser): boolean {
+  return user.role === "ADMIN";
+}
+
 export function visiblePersons(user: DemoUser, persons: Person[]): Person[] {
   return persons.filter((p) => canViewPerson(user, p));
 }

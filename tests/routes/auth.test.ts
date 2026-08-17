@@ -8,12 +8,12 @@ async function seedAccount(app: ReturnType<typeof buildApp>) {
   await app.inject({
     method: "POST",
     url: "/api/demo-users",
-    payload: { name: "Admin User", username: "admin", password: "password123", role: "ADMIN" },
+    payload: { name: "Admin User", email: "admin", password: "password123", role: "ADMIN" },
   });
 }
 
 describe("routes: /auth/login, /auth/logout, /auth/me", () => {
-  it("rejects an unknown username and a wrong password", async () => {
+  it("rejects an unknown email and a wrong password", async () => {
     const app = buildApp();
     await app.ready();
     await seedAccount(app);
@@ -21,14 +21,14 @@ describe("routes: /auth/login, /auth/logout, /auth/me", () => {
     const unknown = await app.inject({
       method: "POST",
       url: "/api/auth/login",
-      payload: { username: "nobody", password: "password123" },
+      payload: { email: "nobody", password: "password123" },
     });
     expect(unknown.statusCode).toBe(401);
 
     const wrongPassword = await app.inject({
       method: "POST",
       url: "/api/auth/login",
-      payload: { username: "admin", password: "wrong-password" },
+      payload: { email: "admin", password: "wrong-password" },
     });
     expect(wrongPassword.statusCode).toBe(401);
     await app.close();
@@ -42,7 +42,7 @@ describe("routes: /auth/login, /auth/logout, /auth/me", () => {
     const login = await app.inject({
       method: "POST",
       url: "/api/auth/login",
-      payload: { username: "admin", password: "password123" },
+      payload: { email: "admin", password: "password123" },
     });
     expect(login.statusCode).toBe(200);
     const loggedInUser = JSON.parse(login.body);
@@ -55,7 +55,7 @@ describe("routes: /auth/login, /auth/logout, /auth/me", () => {
 
     const me = await app.inject({ method: "GET", url: "/api/auth/me", cookies });
     expect(me.statusCode).toBe(200);
-    expect(JSON.parse(me.body).username).toBe("admin");
+    expect(JSON.parse(me.body).email).toBe("admin");
 
     await app.inject({ method: "POST", url: "/api/auth/logout", cookies });
 
