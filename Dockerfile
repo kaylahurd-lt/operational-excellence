@@ -14,4 +14,7 @@ ENV PORT=8080
 ENV DATA_DIR=/data
 EXPOSE 8080
 
-CMD ["npm", "run", "start"]
+# Free-tier hosts with no persistent volume wipe /data on every restart
+# anyway, so reseed on every boot rather than starting with an empty,
+# login-less database.
+CMD ["sh", "-c", "npm run seed && npm run start"]
